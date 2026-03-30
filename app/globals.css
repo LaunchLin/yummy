@@ -1,0 +1,630 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* 温暖复古手帐风配色 - 参考EMMO */
+  --background: #E8E4DC;
+  --foreground: #3E3A39;
+  --card: #D9D5CD;
+  --card-foreground: #3E3A39;
+  --popover: #F0ECE4;
+  --popover-foreground: #3E3A39;
+  --primary: #D97757;
+  --primary-foreground: #FDFBF7;
+  --secondary: #C4B8A8;
+  --secondary-foreground: #3E3A39;
+  --muted: #C9C5BD;
+  --muted-foreground: #6B6560;
+  --accent: #E8B86D;
+  --accent-foreground: #3E3A39;
+  --destructive: #C75050;
+  --destructive-foreground: #FDFBF7;
+  --border: #C9C5BD;
+  --input: #D9D5CD;
+  --ring: #D97757;
+  --radius: 1rem;
+  
+  /* 复古深色系 */
+  --terracotta: #B85C38;
+  --deep-caramel: #A67B5B;
+  --burnt-sienna: #C4694D;
+  --aged-paper: #D4C4A8;
+}
+
+@theme inline {
+  --font-sans: 'Noto Sans SC', system-ui, sans-serif;
+  --font-serif: 'Noto Serif SC', 'ZCOOL XiaoWei', serif;
+  --font-mono: 'Courier New', monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* 网格线笔记本纸张背景 */
+.paper-bg {
+  background-color: #E8E4DC;
+  background-image:
+    linear-gradient(rgba(0,0,0,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,0,0,0.04) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-position: -1px -1px;
+}
+
+/* 深色复古卡片 */
+.vintage-card {
+  background: linear-gradient(145deg, #D4CCC0 0%, #C9C1B5 100%);
+  box-shadow: 
+    0 4px 16px rgba(62, 58, 57, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+/* ========== 家常风格菜单卡片 ========== */
+.home-menu-card {
+  position: relative;
+  background: 
+    /* 柔和纸张纹理 */
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E"),
+    linear-gradient(160deg, #B08968 0%, #9A7356 50%, #7F5D41 100%);
+  background-blend-mode: soft-light, normal;
+  box-shadow: 
+    4px 6px 16px rgba(127, 93, 65, 0.3),
+    2px 3px 6px rgba(62, 58, 57, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  border: none;
+  overflow: visible;
+}
+
+/* 家常菜名文字 - 更温暖柔和 */
+.home-dish-name {
+  font-family: 'Noto Serif SC', serif;
+  color: #F5EFE6;
+  letter-spacing: 0.08em;
+  font-weight: 400;
+}
+
+/* 手撕边缘效果 - 使用 clip-path */
+.torn-edge {
+  clip-path: polygon(
+    0% 2%, 3% 0%, 8% 1.5%, 12% 0.5%, 18% 2%, 24% 0%, 30% 1%, 
+    36% 0.5%, 42% 2%, 48% 0%, 54% 1.5%, 60% 0%, 66% 2%, 
+    72% 0.5%, 78% 1%, 84% 0%, 90% 2%, 95% 0.5%, 100% 1.5%,
+    100% 97%, 97% 100%, 92% 98%, 86% 100%, 80% 98.5%, 74% 100%,
+    68% 98%, 62% 100%, 56% 98.5%, 50% 100%, 44% 98%, 38% 100%,
+    32% 98.5%, 26% 100%, 20% 98%, 14% 100%, 8% 98.5%, 2% 100%, 0% 98%
+  );
+}
+
+/* 不规则边框 - 用于包裹卡片 */
+.irregular-border {
+  position: relative;
+}
+
+.irregular-border::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  background: linear-gradient(135deg, #5A4030 0%, #3E2A1A 100%);
+  border-radius: 20px 24px 22px 26px / 24px 20px 26px 22px;
+  z-index: -1;
+  opacity: 0.15;
+}
+
+/* 咖啡渍纹理装饰 */
+.coffee-stain {
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 40%,
+    rgba(139, 94, 60, 0.08) 50%,
+    rgba(139, 94, 60, 0.12) 60%,
+    transparent 70%
+  );
+  pointer-events: none;
+}
+
+
+
+/* 深色菜单卡片 - 备用 */
+.menu-card {
+  background: linear-gradient(155deg, #C4B8A8 0%, #B8A898 50%, #A89888 100%);
+  box-shadow: 
+    0 6px 24px rgba(62, 58, 57, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+/* 便签卡片 */
+.note-card {
+  background: linear-gradient(180deg, #F5F1E8 0%, #EDE9E0 100%);
+  box-shadow: 
+    0 4px 16px rgba(62, 58, 57, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+/* 手绘风格边框 */
+.hand-drawn {
+  border-radius: 18px 22px 20px 24px / 22px 18px 24px 20px;
+}
+
+/* 复古按钮 */
+.vintage-btn {
+  background: linear-gradient(145deg, #D97757 0%, #C86A4A 100%);
+  box-shadow: 
+    0 4px 16px rgba(217, 119, 87, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transition: all 0.2s ease;
+}
+
+.vintage-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 
+    0 6px 20px rgba(217, 119, 87, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.vintage-btn:active {
+  transform: translateY(0);
+}
+
+/* 自定义开关 - 参考EMMO风格 */
+.custom-toggle {
+  width: 56px;
+  height: 30px;
+  background: #B8B4AC;
+  border-radius: 15px;
+  position: relative;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.custom-toggle.active {
+  background: #7CB3D9;
+}
+
+.custom-toggle-knob {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  background: #3E3A39;
+  border-radius: 50%;
+  top: 2px;
+  left: 2px;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.custom-toggle.active .custom-toggle-knob {
+  left: 28px;
+}
+
+/* 底部导航栏 */
+.bottom-nav {
+  background: rgba(232, 228, 220, 0.98);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid rgba(201, 197, 189, 0.6);
+}
+
+/* 复古邮戳 */
+.stamp {
+  border: 2.5px solid currentColor;
+  border-radius: 4px;
+  padding: 5px 14px;
+  transform: rotate(-8deg);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  position: relative;
+}
+
+.stamp::before {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border: 1px dashed currentColor;
+  border-radius: 2px;
+  opacity: 0.5;
+}
+
+/* 手工盖章图案 */
+.hand-stamp {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  border: 3px double #B85C38;
+  border-radius: 50%;
+  color: #B85C38;
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 0.1em;
+  transform: rotate(-15deg);
+  opacity: 0.85;
+}
+
+.hand-stamp::after {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border: 1px solid #B85C38;
+  border-radius: 50%;
+  opacity: 0.6;
+}
+
+/* 装饰性虚线 */
+.dashed-border {
+  border: 1.5px dashed #C9C5BD;
+}
+
+/* 食材标签 */
+.ingredient-item {
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px dashed #C9C5BD;
+  border-radius: 10px;
+}
+
+/* 抽屉背景 */
+.drawer-bg {
+  background: linear-gradient(180deg, #F5F1E8 0%, #E8E4DC 100%);
+}
+
+/* 选项卡片 */
+.option-card {
+  background: linear-gradient(145deg, #D9D5CD 0%, #CCC8C0 100%);
+  box-shadow: 
+    0 3px 12px rgba(62, 58, 57, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  transition: all 0.2s ease;
+}
+
+.option-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 
+    0 6px 20px rgba(62, 58, 57, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+.option-card:active {
+  transform: scale(0.98);
+}
+
+/* 结果卡片 */
+.result-card {
+  background: linear-gradient(145deg, #FDFBF7 0%, #F5F1E8 100%);
+  border: 2px solid #3E3A39;
+  box-shadow: 4px 4px 0 #3E3A39;
+}
+
+/* 复古徽章 */
+.vintage-badge {
+  background: linear-gradient(145deg, #D97757 0%, #C45A36 100%);
+  color: #FDFBF7;
+  font-size: 10px;
+  padding: 3px 10px;
+  border-radius: 10px;
+  transform: rotate(-3deg);
+  box-shadow: 0 2px 6px rgba(217, 119, 87, 0.3);
+}
+
+/* 手写风格下划线 */
+.hand-underline {
+  position: relative;
+}
+
+.hand-underline::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #8BC34A, #8BC34A);
+  border-radius: 2px;
+  opacity: 0.6;
+}
+
+/* 隐藏滚动条但保持滚动功能 */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* 文本截断 */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ========== 动效系统 ========== */
+
+/* 基础过渡 */
+.transition-smooth {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 淡入动画 */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+/* 从下往上滑入 */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* 从上往下滑入 */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-down {
+  animation: slideDown 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* 缩放淡入 */
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* 弹性进入 */
+@keyframes bounceIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  70% {
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-bounce-in {
+  animation: bounceIn 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+}
+
+/* 摇晃动画 - 用于骰子 */
+@keyframes shake {
+  0%, 100% { transform: rotate(0deg); }
+  20% { transform: rotate(-15deg); }
+  40% { transform: rotate(15deg); }
+  60% { transform: rotate(-10deg); }
+  80% { transform: rotate(10deg); }
+}
+
+.animate-shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+/* 脉冲效果 */
+@keyframes pulse-soft {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 1.5s ease-in-out infinite;
+}
+
+/* 列表项交错动画 */
+.stagger-item {
+  opacity: 0;
+  animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.stagger-item:nth-child(1) { animation-delay: 0ms; }
+.stagger-item:nth-child(2) { animation-delay: 50ms; }
+.stagger-item:nth-child(3) { animation-delay: 100ms; }
+.stagger-item:nth-child(4) { animation-delay: 150ms; }
+.stagger-item:nth-child(5) { animation-delay: 200ms; }
+.stagger-item:nth-child(6) { animation-delay: 250ms; }
+.stagger-item:nth-child(7) { animation-delay: 300ms; }
+.stagger-item:nth-child(8) { animation-delay: 350ms; }
+.stagger-item:nth-child(9) { animation-delay: 400ms; }
+.stagger-item:nth-child(10) { animation-delay: 450ms; }
+
+/* 页面切换动画 */
+@keyframes pageEnter {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-page-enter {
+  animation: pageEnter 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* 详情页进入 */
+@keyframes detailEnter {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-detail-enter {
+  animation: detailEnter 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* 浮层弹出 */
+@keyframes popoverIn {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-popover-in {
+  animation: popoverIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* 按钮按下效果 */
+.btn-press {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn-press:active {
+  transform: scale(0.96);
+}
+
+/* 卡片悬浮效果 */
+.card-hover {
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+}
+
+/* 底部导航动画 */
+.nav-item {
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nav-item:active {
+  transform: scale(0.92);
+}
+
+/* 勾选动画 */
+@keyframes checkmark {
+  0% {
+    stroke-dashoffset: 16;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+.animate-check {
+  stroke-dasharray: 16;
+  animation: checkmark 0.25s ease-out forwards;
+}
+
+/* 删除划出动画 */
+@keyframes slideOutRight {
+  to {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+.animate-slide-out-right {
+  animation: slideOutRight 0.3s ease-out forwards;
+}
+
+/* 旋转加载 */
+@keyframes spin-slow {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin-slow {
+  animation: spin-slow 1s linear infinite;
+}
+
+
