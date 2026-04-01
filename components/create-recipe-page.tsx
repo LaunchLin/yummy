@@ -1,14 +1,15 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { toast } from 'sonner'
-import { X, Plus, Camera, ArrowLeft } from 'lucide-react'
+import { X, Plus, Camera, ArrowLeft, GripVertical, ChevronUp, ChevronDown } from 'lucide-react'
 
 import { createRecipe, updateRecipe } from '@/app/actions/cook'
 import { buildCreateRecipePayload } from '@/lib/create-recipe-payload'
 import { parseRecipeMainItems } from '@/lib/meal-ingredients'
 import type { RecipeRow } from '@/lib/types/database'
+import { createClient } from '@/utils/supabase/client'
 
 interface CreateRecipePageProps {
   onBack: () => void
@@ -137,6 +138,9 @@ function IngredientInput({
   onChangeValue,
   onChangeQuantity,
   onRemove,
+  onMoveUp,
+  onMoveDown,
+  dragHandleProps,
   placeholder,
 }: {
   value: string
@@ -144,10 +148,21 @@ function IngredientInput({
   onChangeValue: (value: string) => void
   onChangeQuantity: (value: string) => void
   onRemove: () => void
+  onMoveUp?: () => void
+  onMoveDown?: () => void
+  dragHandleProps?: React.HTMLAttributes<HTMLButtonElement>
   placeholder: string
 }) {
   return (
     <div className="flex items-center gap-2 group min-w-0">
+      <button
+        type="button"
+        aria-label="拖动排序"
+        className="text-[#B8B4AC] hover:text-[#6B6560] active:text-[#3E3A39] btn-press touch-none select-none"
+        {...dragHandleProps}
+      >
+        <GripVertical className="w-4 h-4" />
+      </button>
       <span className="w-1.5 h-1.5 rounded-full bg-[#9A9590] flex-shrink-0" />
       <input
         type="text"
@@ -163,6 +178,18 @@ function IngredientInput({
         placeholder="用量"
         className="w-14 flex-shrink-0 bg-transparent border-0 border-b border-dashed border-[#C9C5BD] focus:border-[#D97757] focus:outline-none text-[#9A9590] placeholder-[#B8B4AC] py-1.5 text-xs transition-colors text-right"
       />
+      <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-all">
+        {onMoveUp && (
+          <button type="button" onClick={onMoveUp} className="text-[#9A9590] hover:text-[#D97757] btn-press">
+            <ChevronUp className="w-4 h-4" />
+          </button>
+        )}
+        {onMoveDown && (
+          <button type="button" onClick={onMoveDown} className="text-[#9A9590] hover:text-[#D97757] btn-press">
+            <ChevronDown className="w-4 h-4" />
+          </button>
+        )}
+      </div>
       <button
         onClick={onRemove}
         className="flex-shrink-0 opacity-0 group-hover:opacity-100 text-[#9A9590] hover:text-[#D97757] transition-all"
@@ -245,6 +272,7 @@ export function CreateRecipePage({ onBack, initialRecipe, onSaved }: CreateRecip
 
   const [recipeName, setRecipeName] = useState('')
   const [recipeImage, setRecipeImage] = useState<string | null>(null)
+  const [imageUploading, setImageUploading] = useState(false)
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [customTags, setCustomTags] = useState<{ id: string; label: string }[]>([])
   const [showAddTag, setShowAddTag] = useState(false)
@@ -254,6 +282,7 @@ export function CreateRecipePage({ onBack, initialRecipe, onSaved }: CreateRecip
   const [sauceIngredients, setSauceIngredients] = useState<{ value: string; quantity: string }[]>([{ value: '', quantity: '' }])
   const [prep, setPrep] = useState('')
   const [steps, setSteps] = useState('')
+  const [tips, setTips] = useState('')
   const [saving, setSaving] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -280,6 +309,7 @@ export function CreateRecipePage({ onBack, initialRecipe, onSaved }: CreateRecip
     setRecipeImage(initial.cover_url?.trim() || null)
     setPrep(initial.prep ?? '')
     setSteps(initial.steps ?? '')
+    setTips(initial.notes ?? '')
 
     // tags：表里存的是 label 文案。默认标签匹配不到的都作为自定义标签回填
     const wanted = (initial.tags ?? []).filter(Boolean)
@@ -310,6 +340,140 @@ export function CreateRecipePage({ onBack, initialRecipe, onSaved }: CreateRecip
     const sauceRows = (initial.sauces ?? []).map((x) => parseAuxSauceRow(String(x)))
     setSauceIngredients(sauceRows.length ? sauceRows : [{ value: '', quantity: '' }])
   }, [initialRecipe])
+
+  const initialSnapshotRef = useRef<string>('')
+  useEffect(() => {
+    if (!mounted) return
+    if (!initialSnapshotRef.current) {
+      initialSnapshotRef.current = JSON.stringify({
+        recipeName,
+        recipeImage,
+        selectedTags,
+        customTags,
+        mainIngredients,
+        auxiliaryIngredients,
+        sauceIngredients,
+        prep,
+        steps,
+        tips,
+      })
+    }
+  }, [mounted])
+
+  const isDirty = useMemo(() => {
+    if (!mounted) return false
+    const snap = JSON.stringify({
+      recipeName,
+      recipeImage,
+      selectedTags,
+      customTags,
+      mainIngredients,
+      auxiliaryIngredients,
+      sauceIngredients,
+      prep,
+      steps,
+      tips,
+    })
+    return Boolean(initialSnapshotRef.current) && snap !== initialSnapshotRef.current
+  }, [
+    mounted,
+    recipeName,
+    recipeImage,
+    selectedTags,
+    customTags,
+    mainIngredients,
+    auxiliaryIngredients,
+    sauceIngredients,
+    prep,
+    steps,
+    tips,
+  ])
+
+  const requestExit = () => {
+    if (saving) return
+    if (!isDirty) {
+      onBack()
+      return
+    }
+    const ok = typeof window === 'undefined' ? false : window.confirm('当前修改尚未保存，确定退出吗？')
+    if (ok) onBack()
+  }
+
+  const reorder = <T,>(list: T[], from: number, to: number): T[] => {
+    if (from === to) return list
+    if (from < 0 || to < 0 || from >= list.length || to >= list.length) return list
+    const next = list.slice()
+    const [moved] = next.splice(from, 1)
+    next.splice(to, 0, moved)
+    return next
+  }
+
+  const usePointerReorder = <T,>(
+    items: T[],
+    setItems: React.Dispatch<React.SetStateAction<T[]>>,
+  ) => {
+    const containerRef = useRef<HTMLDivElement | null>(null)
+    const draggingIndexRef = useRef<number | null>(null)
+    const pointerIdRef = useRef<number | null>(null)
+    const activeRef = useRef(false)
+
+    const handlePropsForIndex = (index: number) => ({
+      onPointerDown: (e: React.PointerEvent<HTMLButtonElement>) => {
+        if (items.length <= 1) return
+        activeRef.current = true
+        draggingIndexRef.current = index
+        pointerIdRef.current = e.pointerId
+        ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+        e.preventDefault()
+      },
+      onPointerMove: (e: React.PointerEvent<HTMLButtonElement>) => {
+        if (!activeRef.current) return
+        if (pointerIdRef.current !== e.pointerId) return
+        const container = containerRef.current
+        if (!container) return
+        const dragging = draggingIndexRef.current
+        if (dragging == null) return
+
+        const rows = Array.from(container.querySelectorAll('[data-reorder-row="1"]')) as HTMLElement[]
+        if (!rows.length) return
+        const y = e.clientY
+        let target = dragging
+        for (let i = 0; i < rows.length; i++) {
+          const rect = rows[i].getBoundingClientRect()
+          const mid = rect.top + rect.height / 2
+          if (y < mid) {
+            target = i
+            break
+          }
+          target = i
+        }
+        if (target !== dragging) {
+          draggingIndexRef.current = target
+          setItems((prev) => reorder(prev, dragging, target))
+        }
+      },
+      onPointerUp: (e: React.PointerEvent<HTMLButtonElement>) => {
+        if (pointerIdRef.current === e.pointerId) {
+          activeRef.current = false
+          draggingIndexRef.current = null
+          pointerIdRef.current = null
+        }
+      },
+      onPointerCancel: (e: React.PointerEvent<HTMLButtonElement>) => {
+        if (pointerIdRef.current === e.pointerId) {
+          activeRef.current = false
+          draggingIndexRef.current = null
+          pointerIdRef.current = null
+        }
+      },
+    })
+
+    return { containerRef, handlePropsForIndex }
+  }
+
+  const mainReorder = usePointerReorder(mainIngredients, setMainIngredients)
+  const auxReorder = usePointerReorder(auxiliaryIngredients, setAuxiliaryIngredients)
+  const sauceReorder = usePointerReorder(sauceIngredients, setSauceIngredients)
 
   const [quickAuxiliaries, setQuickAuxiliaries] = useState<string[]>(() => {
     return safeLoadStringList(QUICK_AUX_KEY) ?? defaultAuxiliaries
@@ -395,6 +559,34 @@ export function CreateRecipePage({ onBack, initialRecipe, onSaved }: CreateRecip
     })
   }
 
+  const upsertQuickAuxBatch = (names: string[]) => {
+    const incoming = names.map((x) => x.trim()).filter(Boolean)
+    if (incoming.length === 0) return
+    const prev = quickAuxiliaries
+    let next = prev
+    for (const v of incoming) {
+      if (next.includes(v)) continue
+      next = [v, ...next]
+    }
+    next = next.slice(0, 24)
+    safeSaveStringList(QUICK_AUX_KEY, next)
+    setQuickAuxiliaries(next)
+  }
+
+  const upsertQuickSauceBatch = (names: string[]) => {
+    const incoming = names.map((x) => x.trim()).filter(Boolean)
+    if (incoming.length === 0) return
+    const prev = quickSauces
+    let next = prev
+    for (const v of incoming) {
+      if (next.includes(v)) continue
+      next = [v, ...next]
+    }
+    next = next.slice(0, 24)
+    safeSaveStringList(QUICK_SAUCE_KEY, next)
+    setQuickSauces(next)
+  }
+
   const removeQuickAux = (name: string) => {
     const ok =
       typeof window === 'undefined'
@@ -442,7 +634,6 @@ export function CreateRecipePage({ onBack, initialRecipe, onSaved }: CreateRecip
   }
 
   const updateAuxiliaryIngredient = (index: number, field: 'value' | 'quantity', val: string) => {
-    if (field === 'value') upsertQuickAux(val)
     setAuxiliaryIngredients(prev => {
       const newArr = [...prev]
       newArr[index] = { ...newArr[index], [field]: val }
@@ -461,12 +652,82 @@ export function CreateRecipePage({ onBack, initialRecipe, onSaved }: CreateRecip
   }
 
   const updateSauceIngredient = (index: number, field: 'value' | 'quantity', val: string) => {
-    if (field === 'value') upsertQuickSauce(val)
     setSauceIngredients(prev => {
       const newArr = [...prev]
       newArr[index] = { ...newArr[index], [field]: val }
       return newArr
     })
+  }
+
+  const compressImageToDataUrl = (file: File) => {
+    return new Promise<string>((resolve, reject) => {
+      const img = new Image()
+      const url = URL.createObjectURL(file)
+      img.onload = () => {
+        try {
+          const maxSide = 1280
+          const ratio = Math.min(maxSide / img.width, maxSide / img.height, 1)
+          const w = Math.max(1, Math.round(img.width * ratio))
+          const h = Math.max(1, Math.round(img.height * ratio))
+
+          const canvas = document.createElement('canvas')
+          canvas.width = w
+          canvas.height = h
+          const ctx = canvas.getContext('2d')
+          if (!ctx) throw new Error('canvas ctx missing')
+          ctx.drawImage(img, 0, 0, w, h)
+
+          const tryEncode = (mime: string, quality: number) =>
+            canvas.toDataURL(mime, quality)
+
+          let dataUrl = tryEncode('image/jpeg', 0.82)
+          if (dataUrl.length > 500_000) dataUrl = tryEncode('image/jpeg', 0.72)
+          if (dataUrl.length > 500_000) dataUrl = tryEncode('image/webp', 0.72)
+          if (dataUrl.length > 500_000) dataUrl = tryEncode('image/webp', 0.62)
+
+          URL.revokeObjectURL(url)
+          resolve(dataUrl)
+        } catch (err) {
+          URL.revokeObjectURL(url)
+          reject(err)
+        }
+      }
+      img.onerror = () => {
+        URL.revokeObjectURL(url)
+        reject(new Error('image load failed'))
+      }
+      img.src = url
+    })
+  }
+
+  const uploadRecipeCover = async (blob: Blob) => {
+    const supabase = createClient()
+    const mime =
+      blob.type && /^image\/(jpeg|jpg|png|webp)$/i.test(blob.type) ? blob.type : 'image/jpeg'
+    const ext =
+      mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg'
+    const fileName = `covers/${Date.now()}-${Math.random().toString(16).slice(2)}.${ext}`
+    const { error } = await supabase.storage.from('recipe-covers').upload(fileName, blob, {
+      upsert: true,
+      contentType: mime,
+      cacheControl: '31536000',
+    })
+    if (error) throw new Error(error.message)
+    const { data } = supabase.storage.from('recipe-covers').getPublicUrl(fileName)
+    if (!data?.publicUrl) throw new Error('获取图片地址失败')
+    return data.publicUrl
+  }
+
+  const dataUrlToBlob = (dataUrl: string) => {
+    const parts = dataUrl.split(',')
+    const header = parts[0] ?? ''
+    const b64 = parts[1] ?? ''
+    const mime = (header.match(/data:(.*?);base64/)?.[1] ?? 'image/jpeg').trim()
+    const bin = atob(b64)
+    const len = bin.length
+    const bytes = new Uint8Array(len)
+    for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i)
+    return new Blob([bytes], { type: mime || 'image/jpeg' })
   }
 
   const removeSauceIngredient = (index: number) => {
@@ -482,11 +743,23 @@ export function CreateRecipePage({ onBack, initialRecipe, onSaved }: CreateRecip
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        setRecipeImage(event.target?.result as string)
-      }
-      reader.readAsDataURL(file)
+      void (async () => {
+        try {
+          const dataUrl = await compressImageToDataUrl(file)
+          setImageUploading(true)
+          setRecipeImage(dataUrl) // 先预览
+          const blob = dataUrlToBlob(dataUrl)
+          const url = await uploadRecipeCover(blob)
+          setRecipeImage(url) // 保存时写入 URL
+        } catch (err) {
+          const msg =
+            err instanceof Error ? err.message : typeof err === 'string' ? err : '读取或上传图片失败'
+          toast.error(msg)
+          setRecipeImage(null)
+        } finally {
+          setImageUploading(false)
+        }
+      })()
     }
   }
 
@@ -495,7 +768,7 @@ export function CreateRecipePage({ onBack, initialRecipe, onSaved }: CreateRecip
       toast.error('请输入菜谱名称')
       return
     }
-    if (saving) return
+    if (saving || imageUploading) return
 
     void (async () => {
       setSaving(true)
@@ -509,6 +782,7 @@ export function CreateRecipePage({ onBack, initialRecipe, onSaved }: CreateRecip
         sauceIngredients,
         prep,
         steps,
+        tips,
       })
       const res = initialRecipe?.id
         ? await updateRecipe(initialRecipe.id, payload)
@@ -518,7 +792,24 @@ export function CreateRecipePage({ onBack, initialRecipe, onSaved }: CreateRecip
         toast.error(res.error)
         return
       }
+
+      // 手动新增的辅料/酱料：仅保存成功后，才写入快捷选项
+      upsertQuickAuxBatch(auxiliaryIngredients.map((x) => x.value))
+      upsertQuickSauceBatch(sauceIngredients.map((x) => x.value))
+
       toast.success(initialRecipe?.id ? `已更新「${recipeName}」` : `已保存「${recipeName}」`)
+      initialSnapshotRef.current = JSON.stringify({
+        recipeName: payload.name,
+        recipeImage: payload.cover_url,
+        selectedTags,
+        customTags,
+        mainIngredients,
+        auxiliaryIngredients,
+        sauceIngredients,
+        prep: payload.prep ?? '',
+        steps: payload.steps ?? '',
+        tips: payload.notes ?? '',
+      })
       onSaved?.()
       onBack()
     })()
@@ -533,7 +824,7 @@ export function CreateRecipePage({ onBack, initialRecipe, onSaved }: CreateRecip
     >
       <div className="shrink-0 border-b border-[#C9C5BD] bg-[#F5F1E8]/95 px-5 py-4 backdrop-blur-sm">
         <div className="flex items-center justify-between">
-          <button type="button" onClick={onBack} className="text-[#6B6560] hover:text-[#3E3A39] btn-press">
+          <button type="button" onClick={requestExit} className="text-[#6B6560] hover:text-[#3E3A39] btn-press">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <h2 id="create-recipe-title" className="text-lg font-bold text-[#3E3A39] tracking-wide">
@@ -635,17 +926,29 @@ export function CreateRecipePage({ onBack, initialRecipe, onSaved }: CreateRecip
               + 添加
             </button>
           </div>
-          <div className="space-y-2">
+          <div ref={mainReorder.containerRef} className="space-y-2">
             {mainIngredients.map((ingredient, index) => (
-              <IngredientInput
-                key={index}
+              <div key={index} data-reorder-row="1">
+                <IngredientInput
                 value={ingredient.value}
                 quantity={ingredient.quantity}
                 onChangeValue={(v) => updateMainIngredient(index, 'value', v)}
                 onChangeQuantity={(v) => updateMainIngredient(index, 'quantity', v)}
                 onRemove={() => removeMainIngredient(index)}
+                onMoveUp={
+                  index === 0
+                    ? undefined
+                    : () => setMainIngredients((prev) => reorder(prev, index, index - 1))
+                }
+                onMoveDown={
+                  index === mainIngredients.length - 1
+                    ? undefined
+                    : () => setMainIngredients((prev) => reorder(prev, index, index + 1))
+                }
+                dragHandleProps={mainReorder.handlePropsForIndex(index)}
                 placeholder={index === 0 ? "如：五花肉" : "继续添加..."}
-              />
+                />
+              </div>
             ))}
           </div>
         </div>
@@ -675,17 +978,29 @@ export function CreateRecipePage({ onBack, initialRecipe, onSaved }: CreateRecip
               />
             ))}
           </div>
-          <div className="space-y-2">
+          <div ref={auxReorder.containerRef} className="space-y-2">
             {auxiliaryIngredients.map((ingredient, index) => (
-              <IngredientInput
-                key={index}
+              <div key={index} data-reorder-row="1">
+                <IngredientInput
                 value={ingredient.value}
                 quantity={ingredient.quantity}
                 onChangeValue={(v) => updateAuxiliaryIngredient(index, 'value', v)}
                 onChangeQuantity={(v) => updateAuxiliaryIngredient(index, 'quantity', v)}
                 onRemove={() => removeAuxiliaryIngredient(index)}
+                onMoveUp={
+                  index === 0
+                    ? undefined
+                    : () => setAuxiliaryIngredients((prev) => reorder(prev, index, index - 1))
+                }
+                onMoveDown={
+                  index === auxiliaryIngredients.length - 1
+                    ? undefined
+                    : () => setAuxiliaryIngredients((prev) => reorder(prev, index, index + 1))
+                }
+                dragHandleProps={auxReorder.handlePropsForIndex(index)}
                 placeholder="添加辅料..."
-              />
+                />
+              </div>
             ))}
           </div>
         </div>
@@ -715,17 +1030,29 @@ export function CreateRecipePage({ onBack, initialRecipe, onSaved }: CreateRecip
               />
             ))}
           </div>
-          <div className="space-y-2">
+          <div ref={sauceReorder.containerRef} className="space-y-2">
             {sauceIngredients.map((ingredient, index) => (
-              <IngredientInput
-                key={index}
+              <div key={index} data-reorder-row="1">
+                <IngredientInput
                 value={ingredient.value}
                 quantity={ingredient.quantity}
                 onChangeValue={(v) => updateSauceIngredient(index, 'value', v)}
                 onChangeQuantity={(v) => updateSauceIngredient(index, 'quantity', v)}
                 onRemove={() => removeSauceIngredient(index)}
+                onMoveUp={
+                  index === 0
+                    ? undefined
+                    : () => setSauceIngredients((prev) => reorder(prev, index, index - 1))
+                }
+                onMoveDown={
+                  index === sauceIngredients.length - 1
+                    ? undefined
+                    : () => setSauceIngredients((prev) => reorder(prev, index, index + 1))
+                }
+                dragHandleProps={sauceReorder.handlePropsForIndex(index)}
                 placeholder="添加酱料..."
-              />
+                />
+              </div>
             ))}
           </div>
         </div>
@@ -749,6 +1076,16 @@ export function CreateRecipePage({ onBack, initialRecipe, onSaved }: CreateRecip
             multiline
           />
         </div>
+
+        <div>
+          <label className="block text-sm font-medium text-[#6B6560] mb-2 tracking-wide">Tips</label>
+          <PaperLineInput
+            value={tips}
+            onChange={setTips}
+            placeholder=""
+            multiline
+          />
+        </div>
       </div>
 
       {/* 底部保存按钮（与滚动区分栏，永远贴在屏幕底） */}
@@ -759,7 +1096,7 @@ export function CreateRecipePage({ onBack, initialRecipe, onSaved }: CreateRecip
           onClick={handleSave}
           className="w-full vintage-btn py-3 text-base font-medium text-white disabled:opacity-60"
         >
-          {saving ? '保存中…' : '保存菜谱'}
+          {imageUploading ? '图片上传中…' : saving ? '保存中…' : '保存菜谱'}
         </button>
       </div>
     </div>

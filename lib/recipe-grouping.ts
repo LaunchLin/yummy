@@ -1,4 +1,4 @@
-import type { RecipeRow } from '@/lib/types/database'
+export type HasRecipeTags = { tags?: string[] | null }
 
 /** 与新增菜谱页标签 id / 展示 label 对齐（含旧版文案兼容） */
 export const RECIPE_CATEGORY_ORDER: { id: string; label: string }[] = [
@@ -35,11 +35,12 @@ function tagsMatchCategory(tags: string[], catId: string): boolean {
   })
 }
 
-function pickCategoryId(tags: string[]): string {
+function pickCategoryIds(tags: string[]): string[] {
+  const out: string[] = []
   for (const { id } of RECIPE_CATEGORY_ORDER) {
-    if (tagsMatchCategory(tags, id)) return id
+    if (tagsMatchCategory(tags, id)) out.push(id)
   }
-  return 'other'
+  return out.length ? out : ['other']
 }
 
 /** 抽签、筛选：菜谱 tags 是否属于某分类 id */
@@ -47,23 +48,23 @@ export function recipeTagsMatchCategoryId(tags: string[], catId: string): boolea
   return tagsMatchCategory(tags, catId)
 }
 
-export type CookCategorySection = {
+export type CookCategorySection<T> = {
   id: string
   label: string
-  recipes: RecipeRow[]
+  recipes: T[]
 }
 
-export function groupRecipesForCookView(recipes: RecipeRow[]): CookCategorySection[] {
-  const bucket = new Map<string, RecipeRow[]>()
+export function groupRecipesForCookView<T extends HasRecipeTags>(recipes: T[]): CookCategorySection<T>[] {
+  const bucket = new Map<string, T[]>()
   for (const { id } of RECIPE_CATEGORY_ORDER) bucket.set(id, [])
   bucket.set('other', [])
 
   for (const r of recipes) {
-    const cid = pickCategoryId(r.tags ?? [])
-    bucket.get(cid)!.push(r)
+    const cids = pickCategoryIds(r.tags ?? [])
+    for (const cid of cids) bucket.get(cid)!.push(r)
   }
 
-  const out: CookCategorySection[] = []
+  const out: CookCategorySection<T>[] = []
   for (const { id, label } of RECIPE_CATEGORY_ORDER) {
     const list = bucket.get(id) ?? []
     if (list.length) out.push({ id, label, recipes: list })

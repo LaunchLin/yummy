@@ -9,6 +9,7 @@ export type CreateRecipePayload = {
   sauces: string[]
   prep: string | null
   steps: string | null
+  notes: string | null
 }
 
 type IngredientRow = { value: string; quantity: string }
@@ -32,6 +33,7 @@ export function buildCreateRecipePayload(args: {
   sauceIngredients: IngredientRow[]
   prep: string
   steps: string
+  tips: string
 }): CreateRecipePayload {
   const tags = args.selectedTags
     .map((id) => args.allTags.find((t) => t.id === id)?.label)
@@ -53,5 +55,6 @@ export function buildCreateRecipePayload(args: {
     sauces: rowsToAuxSauceStrings(args.sauceIngredients),
     prep: args.prep.trim() || null,
     steps: args.steps.trim() || null,
+    notes: args.tips.trim() || null,
   }
 }

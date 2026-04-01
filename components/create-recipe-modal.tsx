@@ -6,6 +6,7 @@ import { X, Plus, Camera } from 'lucide-react'
 
 import { createRecipe } from '@/app/actions/cook'
 import { buildCreateRecipePayload } from '@/lib/create-recipe-payload'
+import { createClient } from '@/utils/supabase/client'
 
 interface CreateRecipeModalProps {
   open: boolean
@@ -183,6 +184,7 @@ function QuickChip({
 export function CreateRecipeModal({ open, onClose }: CreateRecipeModalProps) {
   const [recipeName, setRecipeName] = useState('')
   const [recipeImage, setRecipeImage] = useState<string | null>(null)
+  const [imageUploading, setImageUploading] = useState(false)
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [customTags, setCustomTags] = useState<{ id: string; label: string }[]>([])
   const [showAddTag, setShowAddTag] = useState(false)
@@ -192,6 +194,7 @@ export function CreateRecipeModal({ open, onClose }: CreateRecipeModalProps) {
   const [sauceIngredients, setSauceIngredients] = useState<{ value: string; quantity: string }[]>([{ value: '', quantity: '' }])
   const [prep, setPrep] = useState('')
   const [steps, setSteps] = useState('')
+  const [tips, setTips] = useState('')
   const [saving, setSaving] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -309,11 +312,43 @@ export function CreateRecipeModal({ open, onClose }: CreateRecipeModalProps) {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        setRecipeImage(event.target?.result as string)
-      }
-      reader.readAsDataURL(file)
+      void (async () => {
+        try {
+          setImageUploading(true)
+          const reader = new FileReader()
+          const dataUrl: string = await new Promise((resolve, reject) => {
+            reader.onerror = () => reject(new Error('read failed'))
+            reader.onload = () => resolve(String(reader.result ?? ''))
+            reader.readAsDataURL(file)
+          })
+          setRecipeImage(dataUrl)
+
+          const parts = dataUrl.split(',')
+          const header = parts[0] ?? ''
+          const b64 = parts[1] ?? ''
+          const bin = atob(b64)
+          const bytes = new Uint8Array(bin.length)
+          for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+          const blob = new Blob([bytes], { type: 'image/jpeg' })
+
+          const supabase = createClient()
+          const fileName = `covers/${Date.now()}-${Math.random().toString(16).slice(2)}.jpg`
+          const { error } = await supabase.storage.from('recipe-covers').upload(fileName, blob, {
+            upsert: true,
+            contentType: 'image/jpeg',
+            cacheControl: '31536000',
+          })
+          if (error) throw new Error(error.message)
+          const { data } = supabase.storage.from('recipe-covers').getPublicUrl(fileName)
+          if (!data?.publicUrl) throw new Error('获取图片地址失败')
+          setRecipeImage(data.publicUrl)
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : '上传图片失败')
+          setRecipeImage(null)
+        } finally {
+          setImageUploading(false)
+        }
+      })()
     }
   }
 
@@ -322,7 +357,7 @@ export function CreateRecipeModal({ open, onClose }: CreateRecipeModalProps) {
       toast.error('请输入菜谱名称')
       return
     }
-    if (saving) return
+    if (saving || imageUploading) return
 
     void (async () => {
       setSaving(true)
@@ -336,6 +371,7 @@ export function CreateRecipeModal({ open, onClose }: CreateRecipeModalProps) {
         sauceIngredients,
         prep,
         steps,
+        tips,
       })
       const res = await createRecipe(payload)
       setSaving(false)
@@ -353,6 +389,7 @@ export function CreateRecipeModal({ open, onClose }: CreateRecipeModalProps) {
       setSauceIngredients([{ value: '', quantity: '' }])
       setPrep('')
       setSteps('')
+      setTips('')
       onClose()
     })()
   }
@@ -588,6 +625,16 @@ export function CreateRecipeModal({ open, onClose }: CreateRecipeModalProps) {
               multiline
             />
           </div>
+
+          <div>
+            <label className="block text-sm font-medium text-[#6B6560] mb-2 tracking-wide">Tips</label>
+            <PaperLineInput
+              value={tips}
+              onChange={setTips}
+              placeholder=""
+              multiline
+            />
+          </div>
         </div>
 
         {/* 底部保存按钮 */}
@@ -598,7 +645,7 @@ export function CreateRecipeModal({ open, onClose }: CreateRecipeModalProps) {
             onClick={handleSave}
             className="w-full vintage-btn text-white py-3 rounded-xl text-base font-medium disabled:opacity-60"
           >
-            {saving ? '保存中…' : '保存菜谱'}
+            {imageUploading ? '图片上传中…' : saving ? '保存中…' : '保存菜谱'}
           </button>
         </div>
       </div>

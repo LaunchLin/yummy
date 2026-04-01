@@ -28,7 +28,9 @@ const PLAN_LABELS: Record<MealPlanPickValue, string> = {
   'tomorrow-dinner': '明天晚餐',
 }
 
-function cardFromRow(r: RecipeRow): { id: string; name: string; cover: string } {
+type RecipeListRow = Pick<RecipeRow, 'id' | 'name' | 'cover_url' | 'tags'>
+
+function cardFromRow(r: RecipeListRow): { id: string; name: string; cover: string } {
   return {
     id: r.id,
     name: r.name,
@@ -83,14 +85,17 @@ function AddToPlanPopover({
 
   if (!open) return null
 
-  return (
+  // 挂到 body：与 RecipeDetailPage 相同，避免 HomeClient 的 animate-page-enter（transform）
+  // 使 fixed 相对错误祖先，导致浮层跑到页面顶部/错位。
+  const ui = (
     <>
       <div className="fixed inset-0 z-40 animate-fade-in" onClick={onClose} />
       <div
-        className="fixed z-50 bg-[#F5F1E8] rounded-xl shadow-lg border border-[#C9C5BD] py-2 min-w-[120px] animate-popover-in"
+        className="fixed z-50 w-max max-w-[calc(100vw-24px)] bg-[#F5F1E8] rounded-xl shadow-lg border border-[#C9C5BD] py-1.5 animate-popover-in"
         style={{
-          left: Math.min(position.x, window.innerWidth - 140),
+          left: Math.max(12, Math.min(position.x, window.innerWidth - 12)),
           top: position.y,
+          transform: 'translateX(-50%)',
         }}
       >
         {options.map((option, index) => (
@@ -98,7 +103,7 @@ function AddToPlanPopover({
             key={option.value}
             type="button"
             onClick={() => handleSelect(option)}
-            className="w-full px-4 py-2 text-left text-sm text-[#3E3A39] hover:bg-[#E8E4DC] transition-colors stagger-item"
+            className="block w-full whitespace-nowrap px-3 py-2 text-left text-sm text-[#3E3A39] hover:bg-[#E8E4DC] transition-colors stagger-item"
             style={{ animationDelay: `${index * 50}ms` }}
           >
             {option.label}
@@ -107,6 +112,8 @@ function AddToPlanPopover({
       </div>
     </>
   )
+
+  return typeof document !== 'undefined' ? createPortal(ui, document.body) : null
 }
 
 function RecipeDetailPage({
@@ -127,6 +134,7 @@ function RecipeDetailPage({
   const sauces = recipe.sauces ?? []
   const prepLines = splitRecipeLines(recipe.prep)
   const stepLines = splitRecipeLines(recipe.steps)
+  const tipsLines = splitRecipeLines(recipe.notes)
 
   return (
     <div className="fixed inset-0 z-[60] bg-[#F5F1E8] paper-bg overflow-y-auto animate-detail-enter pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
@@ -220,14 +228,12 @@ function RecipeDetailPage({
           )}
         </div>
 
-        <div className="note-card hand-drawn p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#87CEEB]" />
-            <span className="text-sm font-semibold text-[#3E3A39]">调味品</span>
-          </div>
-          {sauces.length === 0 ? (
-            <p className="text-sm text-[#6B6560]">暂无调味品信息</p>
-          ) : (
+        {sauces.length > 0 && (
+          <div className="note-card hand-drawn p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#87CEEB]" />
+              <span className="text-sm font-semibold text-[#3E3A39]">调味品</span>
+            </div>
             <div className="flex flex-wrap gap-2">
               {sauces.map((s, i) => (
                 <span key={i} className="px-2 py-1 text-xs bg-[#E8E4DC] text-[#6B6560] rounded-lg">
@@ -235,8 +241,8 @@ function RecipeDetailPage({
                 </span>
               ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         <div className="note-card hand-drawn p-4">
           <div className="flex items-center gap-2 mb-3">
@@ -279,6 +285,25 @@ function RecipeDetailPage({
             </div>
           )}
         </div>
+
+        {tipsLines.length > 0 && (
+          <div className="note-card hand-drawn p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#DDA0DD]" />
+              <span className="text-sm font-semibold text-[#3E3A39]">Tips</span>
+            </div>
+            <div className="space-y-3">
+              {tipsLines.map((line, i) => (
+                <div key={i} className="flex gap-3">
+                  <span className="w-5 h-5 rounded-full bg-[#DDA0DD]/25 text-[#3E3A39] text-xs flex items-center justify-center flex-shrink-0 mt-0.5">
+                    {i + 1}
+                  </span>
+                  <p className="text-sm text-[#6B6560] leading-relaxed">{line}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -305,7 +330,7 @@ function RecipeCard({
   return (
     <div className="w-full">
       <div
-        className="w-full aspect-square rounded-xl mb-1.5 relative overflow-hidden hand-drawn cursor-pointer card-hover transition-all"
+        className="w-full aspect-square rounded-xl mb-1 relative overflow-hidden hand-drawn cursor-pointer card-hover transition-all"
         style={{
           background: hasImage ? undefined : `linear-gradient(145deg, ${bgColor}40, ${bgColor}20)`,
           border: '2px solid rgba(62, 58, 57, 0.1)',
@@ -316,13 +341,10 @@ function RecipeCard({
           // eslint-disable-next-line @next/next/no-img-element
           <img src={recipe.cover} alt={recipe.name} className="w-full h-full object-cover" />
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-10 h-10 rounded-full opacity-30" style={{ background: bgColor }} />
-            <div className="absolute inset-0 flex items-center justify-center px-3">
-              <span className="text-sm font-semibold text-[#3E3A39] text-center leading-tight line-clamp-2 drop-shadow-[0_1px_0_rgba(245,241,232,0.7)]">
-                {recipe.name}
-              </span>
-            </div>
+          <div className="absolute inset-0 flex items-center justify-center px-3">
+            <span className="text-sm font-semibold text-[#3E3A39] text-center leading-tight line-clamp-2 drop-shadow-[0_1px_0_rgba(245,241,232,0.7)]">
+              {recipe.name}
+            </span>
           </div>
         )}
 
@@ -334,9 +356,11 @@ function RecipeCard({
           <Plus className="w-3 h-3" />
         </button>
       </div>
-      <p className="text-xs text-[#3E3A39] text-center font-medium leading-tight line-clamp-2">
-        {recipe.name}
-      </p>
+      {hasImage && (
+        <p className="text-xs text-[#3E3A39] text-center font-medium leading-tight line-clamp-2">
+          {recipe.name}
+        </p>
+      )}
     </div>
   )
 }
@@ -349,17 +373,17 @@ function CategorySection({
   onAddToPlan,
 }: {
   category: CategoryBlock
-  onRecipeImageClick: (row: RecipeRow) => void
-  onAddToPlan: (row: RecipeRow, e: React.MouseEvent) => void
+  onRecipeImageClick: (row: RecipeListRow) => void
+  onAddToPlan: (row: RecipeListRow, e: React.MouseEvent) => void
 }) {
   return (
     <div className="mb-4">
       <div className="flex items-center gap-2 mb-2">
-        <h3 className="text-sm font-semibold text-[#3E3A39] tracking-wide">{category.label}</h3>
+        <h3 className="text-base font-bold text-[#3E3A39] tracking-wide">{category.label}</h3>
         <div className="flex-1 h-px bg-gradient-to-r from-[#C9C5BD] to-transparent" />
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-2">
         {category.recipes.map((r) => {
           const c = cardFromRow(r)
           return (
@@ -381,9 +405,9 @@ function SearchResults({
   onRecipeImageClick,
   onAddToPlan,
 }: {
-  results: RecipeRow[]
-  onRecipeImageClick: (row: RecipeRow) => void
-  onAddToPlan: (row: RecipeRow, e: React.MouseEvent) => void
+  results: RecipeListRow[]
+  onRecipeImageClick: (row: RecipeListRow) => void
+  onAddToPlan: (row: RecipeListRow, e: React.MouseEvent) => void
 }) {
   if (results.length === 0) {
     return (
@@ -394,7 +418,7 @@ function SearchResults({
   }
 
   return (
-    <div className="grid grid-cols-3 gap-3">
+    <div className="grid grid-cols-3 gap-2">
       {results.map((r) => {
         const c = cardFromRow(r)
         return (
@@ -414,31 +438,72 @@ export function CookView() {
   const router = useRouter()
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showPantryModal, setShowPantryModal] = useState(false)
-  const [allRecipes, setAllRecipes] = useState<RecipeRow[]>([])
+  const [allRecipes, setAllRecipes] = useState<RecipeListRow[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedRecipe, setSelectedRecipe] = useState<RecipeRow | null>(null)
   const [editingRecipe, setEditingRecipe] = useState<RecipeRow | null>(null)
   const [addToPlanRecipe, setAddToPlanRecipe] = useState<{
-    recipe: RecipeRow
+    recipe: RecipeListRow
     position: { x: number; y: number }
   } | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [isSearching, setIsSearching] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
 
-  const loadRecipes = useCallback(async () => {
+  const CACHE_KEY = 'yummy.recipes.list.v1'
+  const CACHE_TTL_MS = 5 * 60_000
+
+  const saveCache = (rows: RecipeListRow[]) => {
+    if (typeof window === 'undefined') return
+    try {
+      window.sessionStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), rows }))
+    } catch {
+      // ignore
+    }
+  }
+
+  const loadCache = (): { at: number; rows: RecipeListRow[] } | null => {
+    if (typeof window === 'undefined') return null
+    try {
+      const raw = window.sessionStorage.getItem(CACHE_KEY)
+      if (!raw) return null
+      const parsed = JSON.parse(raw)
+      if (!parsed || typeof parsed !== 'object') return null
+      if (!Array.isArray((parsed as any).rows)) return null
+      return {
+        at: Number((parsed as any).at ?? 0),
+        rows: (parsed as any).rows as RecipeListRow[],
+      }
+    } catch {
+      return null
+    }
+  }
+
+  const loadRecipes = useCallback(async (opts?: { force?: boolean }) => {
+    const force = Boolean(opts?.force)
+    if (!force) {
+      const cached = loadCache()
+      if (cached?.rows?.length) {
+        setAllRecipes(cached.rows)
+        setLoading(false)
+        if (Date.now() - cached.at < CACHE_TTL_MS) return
+      }
+    }
+
     setLoading(true)
     try {
       const supabase = createClient()
       const { data, error } = await supabase
         .from('recipes')
-        .select('*')
+        .select('id,name,cover_url,tags')
         .order('created_at', { ascending: false })
       if (error) {
         toast.error(error.message)
         setAllRecipes([])
       } else {
-        setAllRecipes((data ?? []) as RecipeRow[])
+        const rows = (data ?? []) as RecipeListRow[]
+        setAllRecipes(rows)
+        saveCache(rows)
       }
     } catch {
       toast.error('加载菜谱失败')
@@ -446,6 +511,13 @@ export function CookView() {
     } finally {
       setLoading(false)
     }
+  }, [])
+
+  const fetchRecipeById = useCallback(async (id: string) => {
+    const supabase = createClient()
+    const { data, error } = await supabase.from('recipes').select('*').eq('id', id).single()
+    if (error) throw new Error(error.message)
+    return data as RecipeRow
   }, [])
 
   useEffect(() => {
@@ -461,7 +533,7 @@ export function CookView() {
     }
     if (createModalWasOpen.current) {
       createModalWasOpen.current = false
-      void loadRecipes()
+      void loadRecipes({ force: true })
     }
   }, [showCreateModal, loadRecipes])
 
@@ -494,23 +566,32 @@ export function CookView() {
       }
       toast.success(`已删除「${selectedRecipe.name}」`)
       setSelectedRecipe(null)
-      await loadRecipes()
+      await loadRecipes({ force: true })
     })()
   }
 
-  const handleAddToPlan = (recipe: RecipeRow, e: React.MouseEvent) => {
+  const handleAddToPlan = (recipe: RecipeListRow, e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation()
-    const cardElement = (e.target as HTMLElement).closest('.w-full.aspect-square')?.parentElement
-    if (cardElement) {
-      const rect = cardElement.getBoundingClientRect()
-      setAddToPlanRecipe({
-        recipe,
-        position: {
-          x: rect.left + rect.width / 2 - 60,
-          y: rect.bottom + 8,
-        },
-      })
-    }
+    const btn = e.currentTarget
+    const rect = btn.getBoundingClientRect()
+    setAddToPlanRecipe({
+      recipe,
+      position: {
+        x: rect.left + rect.width / 2,
+        y: rect.bottom + 8,
+      },
+    })
+  }
+
+  const handleOpenRecipe = (row: RecipeListRow) => {
+    void (async () => {
+      try {
+        const full = await fetchRecipeById(row.id)
+        setSelectedRecipe(full)
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : '加载菜谱失败')
+      }
+    })()
   }
 
   const handlePlanPick = (value: MealPlanPickValue) => {
@@ -551,11 +632,11 @@ export function CookView() {
   }
 
   return (
-    <div className="relative">
+    <div className="relative -mx-2">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-bold text-[#3E3A39] tracking-wide">我的菜谱</h2>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center space-x-2">
           <button
             type="button"
             onClick={() => setIsSearching(!isSearching)}
@@ -610,7 +691,7 @@ export function CookView() {
       ) : isSearching && searchQuery ? (
         <SearchResults
           results={searchResults}
-          onRecipeImageClick={setSelectedRecipe}
+          onRecipeImageClick={handleOpenRecipe}
           onAddToPlan={handleAddToPlan}
         />
       ) : allRecipes.length === 0 ? (
@@ -623,7 +704,7 @@ export function CookView() {
             <CategorySection
               key={category.id}
               category={category}
-              onRecipeImageClick={setSelectedRecipe}
+              onRecipeImageClick={handleOpenRecipe}
               onAddToPlan={handleAddToPlan}
             />
           ))}

@@ -236,6 +236,25 @@ function RecipeDetailPage({
             )}
           </div>
         </div>
+
+        {recipe.tipsLines.length > 0 && (
+          <div className="note-card hand-drawn p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="w-2.5 h-2.5 rounded-full bg-[#DDA0DD]" />
+              <span className="text-sm font-semibold text-[#3E3A39]">Tips</span>
+            </div>
+            <div className="space-y-3">
+              {recipe.tipsLines.map((line, i) => (
+                <div key={i} className="flex gap-3">
+                  <span className="w-5 h-5 rounded-full bg-[#DDA0DD]/25 text-[#3E3A39] text-xs flex items-center justify-center flex-shrink-0 mt-0.5">
+                    {i + 1}
+                  </span>
+                  <p className="text-sm text-[#6B6560] leading-relaxed">{line}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -281,12 +300,15 @@ function ShoppingItem({
 
 function IngredientItem({
   ingredient,
+  inShoppingList,
   onAddToShopping,
 }: {
   ingredient: Ingredient
+  inShoppingList: boolean
   onAddToShopping: (ingredient: Ingredient) => void
 }) {
   const handleAddToCart = () => {
+    if (inShoppingList) return
     onAddToShopping(ingredient)
     toast.success(`已将「${ingredient.name}」加入采购清单`)
   }
@@ -303,9 +325,19 @@ function IngredientItem({
       <button
         type="button"
         onClick={handleAddToCart}
-        className="p-2 rounded-xl text-[#6B6560] hover:text-[#D97757] hover:bg-[#D97757]/10 transition-colors"
+        disabled={inShoppingList}
+        title={
+          inShoppingList
+            ? '已在采购清单中，请先在上方移除后再加入'
+            : '加入采购清单'
+        }
+        className={`p-2 rounded-xl transition-colors ${
+          inShoppingList
+            ? 'text-[#9A9590]/50 cursor-not-allowed opacity-60'
+            : 'text-[#6B6560] hover:text-[#D97757] hover:bg-[#D97757]/10'
+        }`}
       >
-        <BasketIcon />
+        {inShoppingList ? <Check className="w-5 h-5 text-[#8FBC8F]" strokeWidth={2.5} /> : <BasketIcon />}
       </button>
     </div>
   )
@@ -314,10 +346,12 @@ function IngredientItem({
 function IngredientCategory({
   category,
   ingredients,
+  shoppingNames,
   onAddToShopping,
 }: {
   category: 'main' | 'auxiliary' | 'sauce'
   ingredients: Ingredient[]
+  shoppingNames: Set<string>
   onAddToShopping: (ingredient: Ingredient) => void
 }) {
   const filteredIngredients = ingredients.filter((i) => i.category === category)
@@ -337,6 +371,7 @@ function IngredientCategory({
           <IngredientItem
             key={ingredient.id}
             ingredient={ingredient}
+            inShoppingList={shoppingNames.has(ingredient.name)}
             onAddToShopping={onAddToShopping}
           />
         ))}
@@ -354,9 +389,10 @@ export interface MealPlanViewProps {
   meals: MealScheduleItem[]
   recipes: RecipeRow[]
   ingredients: Ingredient[]
+  onGoToCook?: () => void
 }
 
-export function MealPlanView({ meals: initialMeals, recipes, ingredients }: MealPlanViewProps) {
+export function MealPlanView({ meals: initialMeals, recipes, ingredients, onGoToCook }: MealPlanViewProps) {
   const router = useRouter()
   const recipeById = useMemo(() => new Map(recipes.map((r) => [r.id, r])), [recipes])
 
@@ -409,6 +445,8 @@ export function MealPlanView({ meals: initialMeals, recipes, ingredients }: Meal
     setShoppingList((prev) => prev.filter((item) => item.name !== name))
     toast.success(`已将「${name}」标记为已采购`)
   }
+
+  const shoppingNames = useMemo(() => new Set(shoppingList.map((item) => item.name)), [shoppingList])
 
   const handleSwitchMeal = (direction: 'prev' | 'next') => {
     if (direction === 'next' && hasNextMeal) {
@@ -507,7 +545,10 @@ export function MealPlanView({ meals: initialMeals, recipes, ingredients }: Meal
     return createPortal(
       <CreateRecipePage
         initialRecipe={editingRecipe}
-        onSaved={() => router.refresh()}
+        onSaved={() => {
+          onGoToCook?.()
+          router.refresh()
+        }}
         onBack={() => setEditingRecipe(null)}
       />,
       document.body,
@@ -635,9 +676,24 @@ export function MealPlanView({ meals: initialMeals, recipes, ingredients }: Meal
           <h3 className="text-base font-semibold text-[#3E3A39] tracking-wide">备菜清单</h3>
         </div>
 
-        <IngredientCategory category="main" ingredients={ingredients} onAddToShopping={handleAddToShopping} />
-        <IngredientCategory category="auxiliary" ingredients={ingredients} onAddToShopping={handleAddToShopping} />
-        <IngredientCategory category="sauce" ingredients={ingredients} onAddToShopping={handleAddToShopping} />
+        <IngredientCategory
+          category="main"
+          ingredients={ingredients}
+          shoppingNames={shoppingNames}
+          onAddToShopping={handleAddToShopping}
+        />
+        <IngredientCategory
+          category="auxiliary"
+          ingredients={ingredients}
+          shoppingNames={shoppingNames}
+          onAddToShopping={handleAddToShopping}
+        />
+        <IngredientCategory
+          category="sauce"
+          ingredients={ingredients}
+          shoppingNames={shoppingNames}
+          onAddToShopping={handleAddToShopping}
+        />
 
         <div className="absolute -top-2 left-8 w-8 h-4 bg-[#E8B86D]/60 rounded-sm transform -rotate-2" />
       </div>

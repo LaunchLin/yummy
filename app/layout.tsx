@@ -22,8 +22,8 @@ export const metadata: Metadata = {
   generator: 'v0.app',
   manifest: '/manifest.json',
   icons: {
-    icon: '/icon.jpg',
-    apple: '/icon.jpg',
+    icon: '/favicon.ico',
+    apple: '/favicon.ico',
   },
 }
 

@@ -19,7 +19,7 @@ export async function createRecipe(input: CreateRecipePayload) {
     cover_url.startsWith('data:') &&
     cover_url.length > MAX_DATA_URL_COVER_LEN
   ) {
-    cover_url = null
+    return { ok: false as const, error: '图片太大，请换一张更小的或裁剪后再试' }
   }
 
   const { data, error } = await supabase
@@ -33,7 +33,7 @@ export async function createRecipe(input: CreateRecipePayload) {
       sauces: input.sauces,
       prep: input.prep,
       steps: input.steps,
-      notes: null,
+      notes: input.notes,
     })
     .select('id')
     .single()
@@ -55,7 +55,7 @@ export async function updateRecipe(id: string, input: CreateRecipePayload) {
     cover_url.startsWith('data:') &&
     cover_url.length > MAX_DATA_URL_COVER_LEN
   ) {
-    cover_url = null
+    return { ok: false as const, error: '图片太大，请换一张更小的或裁剪后再试' }
   }
 
   const { error } = await supabase
@@ -69,6 +69,7 @@ export async function updateRecipe(id: string, input: CreateRecipePayload) {
       sauces: input.sauces,
       prep: input.prep,
       steps: input.steps,
+      notes: input.notes,
     })
     .eq('id', id)
 

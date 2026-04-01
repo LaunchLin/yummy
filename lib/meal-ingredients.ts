@@ -81,6 +81,7 @@ export function recipeToDetailParts(r: RecipeRow): {
   ingredients: string[]
   prepLines: string[]
   stepLines: string[]
+  tipsLines: string[]
   coverUrl: string | null
 } {
   const ingredients: string[] = []
@@ -99,6 +100,7 @@ export function recipeToDetailParts(r: RecipeRow): {
     ingredients,
     prepLines: splitRecipeLines(r.prep ?? null),
     stepLines: splitRecipeLines(r.steps),
+    tipsLines: splitRecipeLines(r.notes),
     coverUrl: r.cover_url,
   }
 }

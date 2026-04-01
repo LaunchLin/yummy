@@ -1,0 +1,17 @@
+{
+  "name": "吃啥 - 今天吃点啥",
+  "short_name": "吃啥",
+  "description": "温暖复古风的餐饮计划与美食发现应用",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#E8E4DC",
+  "theme_color": "#E8E4DC",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "16x16",
+      "type": "image/x-icon",
+      "purpose": "any"
+    }
+  ]
+}

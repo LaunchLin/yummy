@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { BottomNav } from '@/components/bottom-nav'
 import { CookView } from '@/components/cook-view'
@@ -20,7 +20,20 @@ export type ArrangePayload =
     }
 
 export function HomeClient({ arrange }: { arrange: ArrangePayload }) {
-  const [activeTab, setActiveTab] = useState('arrange')
+  const TAB_KEY = 'yummy.active_tab.v1'
+  // 首屏必须与 SSR 一致，避免 localStorage 导致 React #418 hydration mismatch
+  const [activeTab, setActiveTab] = useState<'arrange' | 'cook' | 'restaurant'>('arrange')
+
+  useEffect(() => {
+    const v = window.localStorage.getItem(TAB_KEY)
+    if (v === 'cook' || v === 'restaurant' || v === 'arrange') {
+      setActiveTab(v)
+    }
+  }, [])
+
+  useEffect(() => {
+    window.localStorage.setItem(TAB_KEY, activeTab)
+  }, [activeTab])
 
   const goToCook = useCallback(() => {
     setActiveTab('cook')
@@ -47,6 +60,7 @@ export function HomeClient({ arrange }: { arrange: ArrangePayload }) {
                 meals={arrange.meals}
                 recipes={arrange.recipes}
                 ingredients={arrange.ingredients}
+                onGoToCook={goToCook}
               />
             ) : (
               <NoPlanView onGoToCook={goToCook} />

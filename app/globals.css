@@ -71,6 +71,25 @@
   }
 }
 
+/* 禁用 iOS Safari 长按呼出复制/查询等菜单（保留输入区域可选中） */
+html,
+body {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+input,
+textarea,
+[contenteditable='true'],
+[contenteditable=''],
+.selectable {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
 /* 网格线笔记本纸张背景 */
 .paper-bg {
   background-color: #E8E4DC;
