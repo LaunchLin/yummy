@@ -7,6 +7,7 @@ import { CookView } from '@/components/cook-view'
 import { MealPlanView } from '@/components/meal-plan-view'
 import { NoPlanView } from '@/components/no-plan-view'
 import { RestaurantView } from '@/components/restaurant-view'
+import type { RecipeListSummary } from '@/lib/data/recipe-list'
 import type { Ingredient } from '@/lib/mock-data'
 import type { MealScheduleItem, RecipeRow } from '@/lib/types/database'
 
@@ -19,7 +20,13 @@ export type ArrangePayload =
       ingredients: Ingredient[]
     }
 
-export function HomeClient({ arrange }: { arrange: ArrangePayload }) {
+export function HomeClient({
+  arrange,
+  recipeSummaries,
+}: {
+  arrange: ArrangePayload
+  recipeSummaries: RecipeListSummary[]
+}) {
   const TAB_KEY = 'yummy.active_tab.v1'
   // 首屏必须与 SSR 一致，避免 localStorage 导致 React #418 hydration mismatch
   const [activeTab, setActiveTab] = useState<'arrange' | 'cook' | 'restaurant'>('arrange')
@@ -66,7 +73,7 @@ export function HomeClient({ arrange }: { arrange: ArrangePayload }) {
               <NoPlanView onGoToCook={goToCook} />
             ))}
 
-          {activeTab === 'cook' && <CookView />}
+          {activeTab === 'cook' && <CookView initialSummaries={recipeSummaries} />}
 
           {activeTab === 'restaurant' && <RestaurantView />}
         </div>

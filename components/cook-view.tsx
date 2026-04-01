@@ -10,6 +10,7 @@ import type { MealPlanPickValue } from '@/app/actions/cook'
 import { addRecipeToMealPlan, deleteRecipe } from '@/app/actions/cook'
 import { CreateRecipePage } from './create-recipe-page'
 import { PantryPage } from './pantry-page'
+import type { RecipeListSummary } from '@/lib/data/recipe-list'
 import { groupRecipesForCookView } from '@/lib/recipe-grouping'
 import { parseRecipeMainItems, splitRecipeLines } from '@/lib/meal-ingredients'
 import type { RecipeRow } from '@/lib/types/database'
@@ -28,7 +29,7 @@ const PLAN_LABELS: Record<MealPlanPickValue, string> = {
   'tomorrow-dinner': '明天晚餐',
 }
 
-type RecipeListRow = Pick<RecipeRow, 'id' | 'name' | 'cover_url' | 'tags'>
+type RecipeListRow = RecipeListSummary
 
 function cardFromRow(r: RecipeListRow): { id: string; name: string; cover: string } {
   return {
@@ -339,7 +340,14 @@ function RecipeCard({
       >
         {hasImage ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={recipe.cover} alt={recipe.name} className="w-full h-full object-cover" />
+          <img
+            src={recipe.cover}
+            alt={recipe.name}
+            className="w-full h-full object-cover"
+            loading="lazy"
+            decoding="async"
+            sizes="(max-width: 448px) 33vw, 140px"
+          />
         ) : (
           <div className="absolute inset-0 flex items-center justify-center px-3">
             <span className="text-sm font-semibold text-[#3E3A39] text-center leading-tight line-clamp-2 drop-shadow-[0_1px_0_rgba(245,241,232,0.7)]">
@@ -434,12 +442,52 @@ function SearchResults({
   )
 }
 
-export function CookView() {
+const RECIPE_LIST_CACHE_KEY = 'yummy.recipes.list.v1'
+const RECIPE_LIST_CACHE_TTL_MS = 5 * 60_000
+
+function readRecipeListCache(): { at: number; rows: RecipeListRow[] } | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.sessionStorage.getItem(RECIPE_LIST_CACHE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { at?: number; rows?: RecipeListRow[] }
+    if (!parsed || typeof parsed !== 'object') return null
+    if (!Array.isArray(parsed.rows)) return null
+    return { at: Number(parsed.at ?? 0), rows: parsed.rows }
+  } catch {
+    return null
+  }
+}
+
+function writeRecipeListCache(rows: RecipeListRow[]) {
+  if (typeof window === 'undefined') return
+  try {
+    window.sessionStorage.setItem(
+      RECIPE_LIST_CACHE_KEY,
+      JSON.stringify({ at: Date.now(), rows }),
+    )
+  } catch {
+    /* ignore quota */
+  }
+}
+
+export function CookView({ initialSummaries }: { initialSummaries: RecipeListSummary[] }) {
   const router = useRouter()
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showPantryModal, setShowPantryModal] = useState(false)
-  const [allRecipes, setAllRecipes] = useState<RecipeListRow[]>([])
-  const [loading, setLoading] = useState(true)
+  const [allRecipes, setAllRecipes] = useState<RecipeListRow[]>(() => {
+    if (typeof window === 'undefined') return initialSummaries
+    const cached = readRecipeListCache()
+    if (cached?.rows?.length && Date.now() - cached.at < RECIPE_LIST_CACHE_TTL_MS) {
+      return cached.rows
+    }
+    return initialSummaries
+  })
+  const [loading, setLoading] = useState(() => {
+    if (typeof window === 'undefined') return false
+    if (initialSummaries.length > 0) return false
+    return !readRecipeListCache()?.rows?.length
+  })
   const [selectedRecipe, setSelectedRecipe] = useState<RecipeRow | null>(null)
   const [editingRecipe, setEditingRecipe] = useState<RecipeRow | null>(null)
   const [addToPlanRecipe, setAddToPlanRecipe] = useState<{
@@ -450,47 +498,22 @@ export function CookView() {
   const [isSearching, setIsSearching] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
 
-  const CACHE_KEY = 'yummy.recipes.list.v1'
-  const CACHE_TTL_MS = 5 * 60_000
+  const lastServerSigRef = useRef<string | null>(null)
 
-  const saveCache = (rows: RecipeListRow[]) => {
-    if (typeof window === 'undefined') return
-    try {
-      window.sessionStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), rows }))
-    } catch {
-      // ignore
-    }
-  }
-
-  const loadCache = (): { at: number; rows: RecipeListRow[] } | null => {
-    if (typeof window === 'undefined') return null
-    try {
-      const raw = window.sessionStorage.getItem(CACHE_KEY)
-      if (!raw) return null
-      const parsed = JSON.parse(raw)
-      if (!parsed || typeof parsed !== 'object') return null
-      if (!Array.isArray((parsed as any).rows)) return null
-      return {
-        at: Number((parsed as any).at ?? 0),
-        rows: (parsed as any).rows as RecipeListRow[],
-      }
-    } catch {
-      return null
-    }
-  }
-
-  const loadRecipes = useCallback(async (opts?: { force?: boolean }) => {
+  const loadRecipes = useCallback(async (opts?: { force?: boolean; silent?: boolean }) => {
     const force = Boolean(opts?.force)
-    if (!force) {
-      const cached = loadCache()
+    const silent = Boolean(opts?.silent)
+
+    if (!silent && !force) {
+      const cached = readRecipeListCache()
       if (cached?.rows?.length) {
         setAllRecipes(cached.rows)
         setLoading(false)
-        if (Date.now() - cached.at < CACHE_TTL_MS) return
+        if (Date.now() - cached.at < RECIPE_LIST_CACHE_TTL_MS) return
       }
     }
 
-    setLoading(true)
+    if (!silent) setLoading(true)
     try {
       const supabase = createClient()
       const { data, error } = await supabase
@@ -498,18 +521,20 @@ export function CookView() {
         .select('id,name,cover_url,tags')
         .order('created_at', { ascending: false })
       if (error) {
-        toast.error(error.message)
-        setAllRecipes([])
+        if (!silent) toast.error(error.message)
+        if (!silent) setAllRecipes([])
       } else {
         const rows = (data ?? []) as RecipeListRow[]
         setAllRecipes(rows)
-        saveCache(rows)
+        writeRecipeListCache(rows)
       }
     } catch {
-      toast.error('加载菜谱失败')
-      setAllRecipes([])
+      if (!silent) {
+        toast.error('加载菜谱失败')
+        setAllRecipes([])
+      }
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [])
 
@@ -520,8 +545,22 @@ export function CookView() {
     return data as RecipeRow
   }, [])
 
+  /** router.refresh 后服务端带回新的摘要列表时再同步（跳过首次，保留 session 缓存优先策略） */
   useEffect(() => {
-    void loadRecipes()
+    const sig = initialSummaries.map((r) => r.id).join('|')
+    if (lastServerSigRef.current === null) {
+      lastServerSigRef.current = sig
+      return
+    }
+    if (sig !== lastServerSigRef.current) {
+      lastServerSigRef.current = sig
+      setAllRecipes(initialSummaries)
+      writeRecipeListCache(initialSummaries)
+    }
+  }, [initialSummaries])
+
+  useEffect(() => {
+    void loadRecipes({ silent: true })
   }, [loadRecipes])
 
   /** 仅在「新建菜谱」由开变关时拉一次列表；切勿在 closed 状态下每轮 effect 里 refresh，否则会 router.refresh 死循环卡死机器 */
@@ -726,7 +765,7 @@ export function CookView() {
             setEditingRecipe(null)
           }}
           initialRecipe={editingRecipe}
-          onSaved={() => void loadRecipes()}
+          onSaved={() => void loadRecipes({ force: true })}
         />
       )}
 
