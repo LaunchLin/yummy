@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import dynamic from 'next/dynamic'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -8,8 +9,6 @@ import { MoreVertical, Edit2, Trash2, ArrowLeft, Plus, Search, X } from 'lucide-
 
 import type { MealPlanPickValue } from '@/app/actions/cook'
 import { addRecipeToMealPlan, deleteRecipe } from '@/app/actions/cook'
-import { CreateRecipePage } from './create-recipe-page'
-import { PantryPage } from './pantry-page'
 import type { RecipeListSummary } from '@/lib/data/recipe-list'
 import { groupRecipesForCookView } from '@/lib/recipe-grouping'
 import { parseRecipeMainItems, splitRecipeLines } from '@/lib/meal-ingredients'
@@ -21,6 +20,31 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+
+const CreateRecipePageLazy = dynamic(
+  () => import('./create-recipe-page').then((m) => ({ default: m.CreateRecipePage })),
+  {
+    loading: () => (
+      <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#F5F1E8]/95 text-sm text-[#9A9590]">
+        加载编辑器…
+      </div>
+    ),
+  },
+)
+
+const PantryPageLazy = dynamic(
+  () => import('./pantry-page').then((m) => ({ default: m.PantryPage })),
+  {
+    loading: () => (
+      <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#F5F1E8]/95 text-sm text-[#9A9590]">
+        加载中…
+      </div>
+    ),
+  },
+)
+
+/** 全页生命周期内只避免「SSR 已有列表 + 首进下厨」的重复请求；Tab 反复切换仍会静默刷新 */
+let cookListSsrPrimedSession = false
 
 const PLAN_LABELS: Record<MealPlanPickValue, string> = {
   'today-lunch': '今天午餐',
@@ -310,7 +334,7 @@ function RecipeDetailPage({
   )
 }
 
-function RecipeCard({
+const RecipeCard = memo(function RecipeCard({
   recipe,
   onImageClick,
   onAddToPlan,
@@ -371,11 +395,11 @@ function RecipeCard({
       )}
     </div>
   )
-}
+})
 
 type CategoryBlock = ReturnType<typeof groupRecipesForCookView>[number]
 
-function CategorySection({
+const CategorySection = memo(function CategorySection({
   category,
   onRecipeImageClick,
   onAddToPlan,
@@ -406,9 +430,9 @@ function CategorySection({
       </div>
     </div>
   )
-}
+})
 
-function SearchResults({
+const SearchResults = memo(function SearchResults({
   results,
   onRecipeImageClick,
   onAddToPlan,
@@ -440,9 +464,10 @@ function SearchResults({
       })}
     </div>
   )
-}
+})
 
 const RECIPE_LIST_CACHE_KEY = 'yummy.recipes.list.v1'
+const RECIPE_LIST_LAST_NETWORK_KEY = 'yummy.recipes.last_network_at'
 const RECIPE_LIST_CACHE_TTL_MS = 5 * 60_000
 
 function readRecipeListCache(): { at: number; rows: RecipeListRow[] } | null {
@@ -527,6 +552,11 @@ export function CookView({ initialSummaries }: { initialSummaries: RecipeListSum
         const rows = (data ?? []) as RecipeListRow[]
         setAllRecipes(rows)
         writeRecipeListCache(rows)
+        try {
+          window.sessionStorage.setItem(RECIPE_LIST_LAST_NETWORK_KEY, String(Date.now()))
+        } catch {
+          /* ignore */
+        }
       }
     } catch {
       if (!silent) {
@@ -540,7 +570,13 @@ export function CookView({ initialSummaries }: { initialSummaries: RecipeListSum
 
   const fetchRecipeById = useCallback(async (id: string) => {
     const supabase = createClient()
-    const { data, error } = await supabase.from('recipes').select('*').eq('id', id).single()
+    const { data, error } = await supabase
+      .from('recipes')
+      .select(
+        'id,created_at,name,cover_url,tags,main_ingredients,aux_ingredients,sauces,prep,steps,notes',
+      )
+      .eq('id', id)
+      .single()
     if (error) throw new Error(error.message)
     return data as RecipeRow
   }, [])
@@ -560,8 +596,17 @@ export function CookView({ initialSummaries }: { initialSummaries: RecipeListSum
   }, [initialSummaries])
 
   useEffect(() => {
+    if (!cookListSsrPrimedSession && initialSummaries.length > 0) {
+      cookListSsrPrimedSession = true
+      try {
+        window.sessionStorage.setItem(RECIPE_LIST_LAST_NETWORK_KEY, String(Date.now()))
+      } catch {
+        /* ignore */
+      }
+      return
+    }
     void loadRecipes({ silent: true })
-  }, [loadRecipes])
+  }, [loadRecipes, initialSummaries.length])
 
   /** 仅在「新建菜谱」由开变关时拉一次列表；切勿在 closed 状态下每轮 effect 里 refresh，否则会 router.refresh 死循环卡死机器 */
   const createModalWasOpen = useRef(false)
@@ -609,7 +654,7 @@ export function CookView({ initialSummaries }: { initialSummaries: RecipeListSum
     })()
   }
 
-  const handleAddToPlan = (recipe: RecipeListRow, e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleAddToPlan = useCallback((recipe: RecipeListRow, e: React.MouseEvent<HTMLButtonElement>) => {
     e.stopPropagation()
     const btn = e.currentTarget
     const rect = btn.getBoundingClientRect()
@@ -620,20 +665,23 @@ export function CookView({ initialSummaries }: { initialSummaries: RecipeListSum
         y: rect.bottom + 8,
       },
     })
-  }
+  }, [])
 
-  const handleOpenRecipe = (row: RecipeListRow) => {
-    void (async () => {
-      try {
-        const full = await fetchRecipeById(row.id)
-        setSelectedRecipe(full)
-      } catch (err) {
-        toast.error(err instanceof Error ? err.message : '加载菜谱失败')
-      }
-    })()
-  }
+  const handleOpenRecipe = useCallback(
+    (row: RecipeListRow) => {
+      void (async () => {
+        try {
+          const full = await fetchRecipeById(row.id)
+          setSelectedRecipe(full)
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : '加载菜谱失败')
+        }
+      })()
+    },
+    [fetchRecipeById],
+  )
 
-  const handlePlanPick = (value: MealPlanPickValue) => {
+  const handlePlanPick = useCallback((value: MealPlanPickValue) => {
     const target = addToPlanRecipe?.recipe
     if (!target) return
     void (async () => {
@@ -650,7 +698,7 @@ export function CookView({ initialSummaries }: { initialSummaries: RecipeListSum
       setAddToPlanRecipe(null)
       router.refresh()
     })()
-  }
+  }, [addToPlanRecipe, router])
 
   if (selectedRecipe) {
     // 挂到 body：外层 HomeClient 的 animate-page-enter 使用 transform，会使子树内 fixed
@@ -759,7 +807,7 @@ export function CookView({ initialSummaries }: { initialSummaries: RecipeListSum
       />
 
       {showCreateModal && (
-        <CreateRecipePage
+        <CreateRecipePageLazy
           onBack={() => {
             setShowCreateModal(false)
             setEditingRecipe(null)
@@ -769,7 +817,7 @@ export function CookView({ initialSummaries }: { initialSummaries: RecipeListSum
         />
       )}
 
-      {showPantryModal && <PantryPage onBack={() => setShowPantryModal(false)} />}
+      {showPantryModal && <PantryPageLazy onBack={() => setShowPantryModal(false)} />}
     </div>
   )
 }

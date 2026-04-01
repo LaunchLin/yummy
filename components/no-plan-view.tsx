@@ -170,8 +170,10 @@ export function NoPlanView({ onGoToCook }: NoPlanViewProps) {
 
     void (async () => {
       setIsRevealing(true)
-      await new Promise((r) => setTimeout(r, 600))
-      const { restaurant, error } = await drawRandomRestaurant()
+      const [, { restaurant, error }] = await Promise.all([
+        new Promise<void>((r) => setTimeout(r, 600)),
+        drawRandomRestaurant(),
+      ])
       setIsRevealing(false)
       if (error || !restaurant) {
         toast.error(error ?? '抽签失败')
@@ -193,8 +195,10 @@ export function NoPlanView({ onGoToCook }: NoPlanViewProps) {
     void (async () => {
       setIsRevealing(true)
       setShowTagSelection(false)
-      await new Promise((r) => setTimeout(r, 600))
-      const { recipe, error } = await drawRandomRecipe(tagId)
+      const [, { recipe, error }] = await Promise.all([
+        new Promise<void>((r) => setTimeout(r, 600)),
+        drawRandomRecipe(tagId),
+      ])
       setIsRevealing(false)
       if (error || !recipe) {
         toast.error(error ?? '抽签失败')
@@ -211,10 +215,12 @@ export function NoPlanView({ onGoToCook }: NoPlanViewProps) {
   const handleReroll = () => {
     void (async () => {
       setIsRevealing(true)
-      await new Promise((r) => setTimeout(r, 600))
       if (result.type === 'dish') {
         const tagId = result.selectedTags?.[0] ?? null
-        const { recipe, error } = await drawRandomRecipe(tagId)
+        const [, { recipe, error }] = await Promise.all([
+          new Promise<void>((r) => setTimeout(r, 600)),
+          drawRandomRecipe(tagId),
+        ])
         setIsRevealing(false)
         if (error || !recipe) {
           toast.error(error ?? '抽签失败')
@@ -225,7 +231,10 @@ export function NoPlanView({ onGoToCook }: NoPlanViewProps) {
           data: { id: recipe.id, name: recipe.name },
         }))
       } else {
-        const { restaurant, error } = await drawRandomRestaurant()
+        const [, { restaurant, error }] = await Promise.all([
+          new Promise<void>((r) => setTimeout(r, 600)),
+          drawRandomRestaurant(),
+        ])
         setIsRevealing(false)
         if (error || !restaurant) {
           toast.error(error ?? '抽签失败')

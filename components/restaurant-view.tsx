@@ -76,7 +76,13 @@ function safeSaveWishlist(list: WishlistItem[]) {
   }
 }
 
-function rowToListItem(r: RestaurantRow): RestaurantListItem {
+/** 列表查询仅取这些列，减轻 payload */
+type RestaurantListColumns = Pick<
+  RestaurantRow,
+  'id' | 'name' | 'rating' | 'signature_dishes' | 'notes'
+>
+
+function rowToListItem(r: RestaurantListColumns): RestaurantListItem {
   const { note, badDishes } = decodeRestaurantNotes(r.notes ?? '')
   return {
     id: r.id,
@@ -675,13 +681,13 @@ export function RestaurantView() {
       const supabase = createClient()
       const { data, error } = await supabase
         .from('restaurants')
-        .select('*')
+        .select('id,name,rating,signature_dishes,notes,created_at')
         .order('created_at', { ascending: false })
       if (error) {
         toast.error(error.message)
         setRestaurants([])
       } else {
-        setRestaurants(((data ?? []) as RestaurantRow[]).map(rowToListItem))
+        setRestaurants(((data ?? []) as RestaurantListColumns[]).map(rowToListItem))
       }
     } catch {
       toast.error('加载餐厅失败')

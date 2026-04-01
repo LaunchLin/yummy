@@ -1,12 +1,11 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 import { BottomNav } from '@/components/bottom-nav'
-import { CookView } from '@/components/cook-view'
 import { MealPlanView } from '@/components/meal-plan-view'
 import { NoPlanView } from '@/components/no-plan-view'
-import { RestaurantView } from '@/components/restaurant-view'
 import type { RecipeListSummary } from '@/lib/data/recipe-list'
 import type { Ingredient } from '@/lib/mock-data'
 import type { MealScheduleItem, RecipeRow } from '@/lib/types/database'
@@ -19,6 +18,20 @@ export type ArrangePayload =
       recipes: RecipeRow[]
       ingredients: Ingredient[]
     }
+
+function TabChunkLoading() {
+  return <div className="py-16 text-center text-sm text-[#9A9590]">加载中…</div>
+}
+
+const CookView = dynamic(
+  () => import('@/components/cook-view').then((m) => ({ default: m.CookView })),
+  { loading: () => <TabChunkLoading /> },
+)
+
+const RestaurantView = dynamic(
+  () => import('@/components/restaurant-view').then((m) => ({ default: m.RestaurantView })),
+  { loading: () => <TabChunkLoading /> },
+)
 
 export function HomeClient({
   arrange,

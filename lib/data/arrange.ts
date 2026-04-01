@@ -39,7 +39,7 @@ export async function getTodayArrange(): Promise<TodayArrangeResult> {
 
   const { data: plans, error: planError } = await supabase
     .from('meal_plans')
-    .select('*')
+    .select('id,meal_type,recipe_ids')
     .eq('plan_date', today)
 
   if (planError) {
@@ -60,7 +60,9 @@ export async function getTodayArrange(): Promise<TodayArrangeResult> {
   if (ids.length) {
     const { data: recipeRows, error: rErr } = await supabase
       .from('recipes')
-      .select('*')
+      .select(
+        'id,created_at,name,cover_url,tags,main_ingredients,aux_ingredients,sauces,prep,steps,notes',
+      )
       .in('id', ids)
 
     if (rErr) {

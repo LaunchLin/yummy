@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -298,7 +298,7 @@ function ShoppingItem({
   )
 }
 
-function IngredientItem({
+const IngredientItem = memo(function IngredientItem({
   ingredient,
   inShoppingList,
   onAddToShopping,
@@ -341,7 +341,7 @@ function IngredientItem({
       </button>
     </div>
   )
-}
+})
 
 function IngredientCategory({
   category,
