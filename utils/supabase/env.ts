@@ -25,3 +25,12 @@ export function getSupabaseCredentials(): { url: string; anonKey: string } {
 
   return { url, anonKey }
 }
+
+/**
+ * 菜谱封面所在 Storage 桶名，须与控制台实际名称一致。
+ * 未设置时默认为 `recipe-covers`；若控制台用了别的名字，在 .env.local 里覆盖。
+ */
+export function getRecipeCoversBucketName(): string {
+  const raw = process.env.NEXT_PUBLIC_SUPABASE_RECIPE_COVERS_BUCKET?.trim()
+  return raw || 'recipe-covers'
+}

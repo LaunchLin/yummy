@@ -10,6 +10,7 @@ import { buildCreateRecipePayload } from '@/lib/create-recipe-payload'
 import { parseRecipeMainItems } from '@/lib/meal-ingredients'
 import type { RecipeRow } from '@/lib/types/database'
 import { createClient } from '@/utils/supabase/client'
+import { getRecipeCoversBucketName } from '@/utils/supabase/env'
 
 interface CreateRecipePageProps {
   onBack: () => void
@@ -702,18 +703,19 @@ export function CreateRecipePage({ onBack, initialRecipe, onSaved }: CreateRecip
 
   const uploadRecipeCover = async (blob: Blob) => {
     const supabase = createClient()
+    const bucket = getRecipeCoversBucketName()
     const mime =
       blob.type && /^image\/(jpeg|jpg|png|webp)$/i.test(blob.type) ? blob.type : 'image/jpeg'
     const ext =
       mime === 'image/png' ? 'png' : mime === 'image/webp' ? 'webp' : 'jpg'
     const fileName = `covers/${Date.now()}-${Math.random().toString(16).slice(2)}.${ext}`
-    const { error } = await supabase.storage.from('recipe-covers').upload(fileName, blob, {
+    const { error } = await supabase.storage.from(bucket).upload(fileName, blob, {
       upsert: true,
       contentType: mime,
       cacheControl: '31536000',
     })
     if (error) throw new Error(error.message)
-    const { data } = supabase.storage.from('recipe-covers').getPublicUrl(fileName)
+    const { data } = supabase.storage.from(bucket).getPublicUrl(fileName)
     if (!data?.publicUrl) throw new Error('获取图片地址失败')
     return data.publicUrl
   }

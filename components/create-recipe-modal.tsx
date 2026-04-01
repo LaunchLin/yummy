@@ -7,6 +7,7 @@ import { X, Plus, Camera } from 'lucide-react'
 import { createRecipe } from '@/app/actions/cook'
 import { buildCreateRecipePayload } from '@/lib/create-recipe-payload'
 import { createClient } from '@/utils/supabase/client'
+import { getRecipeCoversBucketName } from '@/utils/supabase/env'
 
 interface CreateRecipeModalProps {
   open: boolean
@@ -332,14 +333,15 @@ export function CreateRecipeModal({ open, onClose }: CreateRecipeModalProps) {
           const blob = new Blob([bytes], { type: 'image/jpeg' })
 
           const supabase = createClient()
+          const bucket = getRecipeCoversBucketName()
           const fileName = `covers/${Date.now()}-${Math.random().toString(16).slice(2)}.jpg`
-          const { error } = await supabase.storage.from('recipe-covers').upload(fileName, blob, {
+          const { error } = await supabase.storage.from(bucket).upload(fileName, blob, {
             upsert: true,
             contentType: 'image/jpeg',
             cacheControl: '31536000',
           })
           if (error) throw new Error(error.message)
-          const { data } = supabase.storage.from('recipe-covers').getPublicUrl(fileName)
+          const { data } = supabase.storage.from(bucket).getPublicUrl(fileName)
           if (!data?.publicUrl) throw new Error('获取图片地址失败')
           setRecipeImage(data.publicUrl)
         } catch (err) {
